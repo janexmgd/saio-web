@@ -18,6 +18,13 @@
           return;
         }
 
+        // Show loading spinner and progress bar
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const progressBar = document.getElementById('progress-bar');
+        loadingSpinner.classList.remove('hidden');
+        progressBar.classList.remove('hidden');
+        progressBar.value = 0;
+
         try {
           const userAgent =
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36';
@@ -61,8 +68,34 @@
             throw new Error(`Download failed: ${response.statusText}`);
           }
 
-          const blob = await response.blob();
-          const downloadUrl = window.URL.createObjectURL(blob);
+          const totalSize = +response.headers.get('content-length');
+          const reader = response.body.getReader();
+          const writer = new WritableStream({
+            write(chunk) {
+              // Update progress bar
+              const loaded = chunk.length;
+              progressBar.value =
+                ((progressBar.value + loaded) / totalSize) * 100;
+            },
+          });
+
+          // Create a stream to handle the response body and save it to file
+          const stream = new ReadableStream({
+            start(controller) {
+              reader.read().then(function processChunk({ done, value }) {
+                if (done) {
+                  controller.close();
+                  return;
+                }
+                controller.enqueue(value);
+                reader.read().then(processChunk);
+              });
+            },
+          });
+
+          // Convert stream to blob and trigger the download
+          const responseBlob = await new Response(stream).blob();
+          const downloadUrl = window.URL.createObjectURL(responseBlob);
           const link = document.createElement('a');
           link.href = downloadUrl;
           link.download = filename;
@@ -73,6 +106,10 @@
         } catch (error) {
           console.error('Error:', error);
           alert(`An error occurred: ${error.message}`);
+        } finally {
+          // Hide loading spinner and progress bar
+          loadingSpinner.classList.add('hidden');
+          progressBar.classList.add('hidden');
         }
       };
     </script>
@@ -97,6 +134,24 @@
           Submit
         </button>
       </form>
+
+      <!-- Loading Spinner -->
+      <div
+        id="loading-spinner"
+        class="hidden flex justify-center items-center absolute top-0 left-0 right-0 bottom-0 bg-gray-900 bg-opacity-50"
+      >
+        <div
+          class="w-16 h-16 border-4 border-t-4 border-pink-500 border-solid rounded-full animate-spin"
+        ></div>
+      </div>
+
+      <!-- Progress Bar -->
+      <progress
+        id="progress-bar"
+        class="hidden w-full mt-4"
+        value="0"
+        max="100"
+      ></progress>
     </div>
     <footer class="mt-auto py-4 text-center text-gray-500 dark:text-pink-400">
       Created with ❤️ by Janexmgd
