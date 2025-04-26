@@ -46,7 +46,8 @@ server.post('/download', async (req, res) => {
       throw new Error(`Failed to fetch the file: ${response.statusText}`);
     }
 
-    const buffer = await response.buffer();
+    // Gunakan response.arrayBuffer() dan ubah menjadi Buffer
+    const buffer = Buffer.from(await response.arrayBuffer());
     const contentDisposition = response.headers.get('content-disposition');
     const fileName =
       contentDisposition?.match(/filename="?(.+)"?$/)?.[1] ||
